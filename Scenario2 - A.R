@@ -76,35 +76,13 @@ data_r <- Une_Simul_age_unif(seed=(seed*3333), txMissOutC=0.1, txMissVisit=0.2, 
 
 colnames(data_r)<-c(colnames(data_r)[1:7],"L","M","Y")
 
-# Random selection of 3 visits by subject
-data_t <- data_r %>%
-  group_by(id) %>%
-  filter(!is.na(L) & !is.na(M) & !is.na(Y)) %>%
-  filter(n() >= 3) %>%
-  sample_n(3)  
-
-data_t2 <- data_r %>%
-  group_by(id) %>%
-  filter(!is.na(L) & !is.na(M) & !is.na(Y)) %>%
-  filter(n()<=2)
-
-data_t <- rbind(data_t,data_t2)
-
-res_fusion <- left_join(data_r, data_t, by = c("id", "TimeSeq"), suffix = c("_old", "_new"), relationship="many-to-many")
-
-data_r1 <- data_r 
-
-data_r1$M <- res_fusion$M_new
-data_r1$L <- res_fusion$L_new
-
-
 epsa <- 0.0001
 epsb <- 0.0001
 epsd <- 0.0001
 
-MULT_L <-  hlme(L ~ (X+C)*TimeSeq, random =~1+TimeSeq, subject='id', data = data_r1)
-MULT_M <-  hlme(M ~ (X+C)*TimeSeq, random =~1+TimeSeq, subject='id', data = data_r1)
-MULT_Y <-  hlme(Y ~  (X+C)*TimeSeq, random =~1+TimeSeq, subject='id', data = data_r1)
+MULT_L <-  hlme(L ~ (X+C)*TimeSeq, random =~1+TimeSeq, subject='id', data = data_r)
+MULT_M <-  hlme(M ~ (X+C)*TimeSeq, random =~1+TimeSeq, subject='id', data = data_r)
+MULT_Y <-  hlme(Y ~  (X+C)*TimeSeq, random =~1+TimeSeq, subject='id', data = data_r)
 coefL <- MULT_L$best
 coefM <- MULT_M$best
 coefY <- MULT_Y$best
@@ -117,16 +95,15 @@ para_ini_fixe <- c(coefMU0,coefMU)
 para_ini_2MARQ <- c(para_ini_fixe,lower_triangular,rep(0,9),coefL[10],coefM[10],coefY[10],0,1,0,1,0,1)
 paraFixeUser <- para_ini_2MARQ[indexparaFixeUser]
 
-data_r1 <- data_r1[-which(is.na(data_r1$L)&is.na(data_r1$M)&is.na(data_r1$Y)), ]
+data_r <- data_r[-which(is.na(data_r$L)&is.na(data_r$M)&is.na(data_r$Y)), ]
 
-
-res <-
-  CInLPN(structural.model = list(fixed.LP0 = ~ 1 + X +C| 1 + X+C| 1 + X+C,
-                                 fixed.DeltaLP =L| M | Y  ~ 1 +  X+C | 1 + X+C| 1 + X+C,
+res_timediscF <-
+  CInLPN(structural.model = list(fixed.LP0 = ~ 1 + X+C| 1 + X+C| 1 + X+C,
+                                 fixed.DeltaLP =L| M | Y  ~ 1 +  X +C| 1 + X+C| 1 + X+C,
                                  random.DeltaLP = ~ 1|1|1,
                                  trans.matrix = ~ 1 ,
                                  delta.time = DeltaTestim),
-         measurement.model = list(link.functions = list(links = c(NULL,NULL,NULL),
+         measurement.model = list(link.functions = list(links = rep("linear",3),
                                                         knots = list(NULL, NULL,NULL))),
          
          parameters = list(paras.ini = para_ini_2MARQ, Fixed.para.index = indexparaFixeUser, Fixed.para.values = paraFixeUser),
@@ -134,9 +111,9 @@ res <-
                        makepred = F),
          Time = "TimeSeq",
          subject = "id",
-         data = data_r1,
-         TimeDiscretization = F, cholesky = T)
+         data = data_r,
+         TimeDiscretization = F, cholesky = F)
 
-CI_app <- res
+CI_app <- res_timediscF 
 
-save(CI_app,file=paste("Review_AgeA_INCOMP_COV", rep,".Rdata",sep=""))
+save(CI_app,file=paste("Review_Age_COV", rep,".Rdata",sep=""))
