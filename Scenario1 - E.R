@@ -1,3 +1,25 @@
+################################################################################
+#
+#
+#
+#                                     SCENARIO 1E
+#
+#
+#
+#
+#  This script is designed to generate the results associated with Scenario 1E.
+#  
+#  In this scenario, we have defined the parameters by setting delta to 0.1,
+#  without dropout
+#
+#
+# Each scenario is replicated 250 times to ensure robustness and reliability 
+# in the results.
+#
+#
+################################################################################
+
+
 Sys.setenv(R_LIBS_USER = "~/R/x86_64-pc-linux-gnu-library/4.2")
 options(rgl.useNULL=TRUE)
 args <- commandArgs(TRUE)

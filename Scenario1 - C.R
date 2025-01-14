@@ -1,3 +1,24 @@
+################################################################################
+#
+#
+#
+#                                     SCENARIO 1C
+#
+#
+#
+#
+#  This script is designed to generate the results associated with Scenario 1C.
+#  
+#  In this scenario, we have defined the parameters by setting delta to 0.05,
+#  and the dropout rate to 10.
+#
+#
+# Each scenario is replicated 250 times to ensure robustness and reliability 
+# in the results.
+#
+#
+################################################################################
+
 Sys.setenv(R_LIBS_USER = "~/R/x86_64-pc-linux-gnu-library/4.2")
 options(rgl.useNULL=TRUE)
 args <- commandArgs(TRUE)
@@ -24,8 +45,8 @@ I <- 250 # number of subject
 
 seed <- rep
 TempsFin <- 5
-DeltaT <- 0.1
-DeltaTestim <- 0.1 
+DeltaT <- 0.05
+DeltaTestim <- 0.05 
 
 para_mu0 <- c(0.5, 1.80, 0.2, 0.90, 0.6, 1.5) 
 para_mu <- c(0.10, 0.20, 0.2, 0.80, 0.8, 0.40) 

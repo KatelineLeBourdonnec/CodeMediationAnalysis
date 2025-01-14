@@ -2,15 +2,15 @@
 #
 #
 #
-#                                     SCENARIO 2C
+#                                     SCENARIO 2D
 #
 #
 #
 #
-#  This script is designed to generate the results associated with Scenario 1A.
+#  This script is designed to generate the results associated with Scenario 2D.
 #  
 #  In this scenario, we have defined the parameters by setting delta to 1,
-#  and the dropout rate to 10 with MAR dropout and a baseline confounder.
+#  and the dropout rate to 10 with MNAR dropout and a baseline confounder.
 #
 # Each scenario is replicated 250 times to ensure robustness and reliability 
 # in the results.
@@ -89,31 +89,29 @@ subject="id"
 Time="Time"
 all.preds=c("X", "C")
 
+
 data_r <- Une_Simul_age_unif(seed=(seed*3333), txMissOutC=0, txMissVisit=0, K=K, I=I, DeltaT=DeltaT, DeltaTestim=DeltaTestim,
                              fixed_X0.models = fixed_X0.models, fixed_DeltaX.models = fixed_DeltaX.models, 
                              randoms_X0.models = randoms_X0.models, randoms_DeltaX.models = randoms_DeltaX.models, 
                              mod_trans.model = mod_trans.model, predictorsA = predictorsA, para_mu0=para_mu0, 
                              para_mu=para_mu, matD, q=q, vec_alpha_ij=vec_alpha_ij, Sig=Sig, paraEtha0, paraEtha1)
 
-data_rY <- data_r %>%
-  filter(!is.na(Y3)|!is.na(Y2)|!is.na(Y1))
-table(data_rY$id)
-
-
 colnames(data_r)<-c(colnames(data_r)[1:7],"L","M","Y")
 
-quantile(data_r$Y, probs = c(0.6, 0.7,0.8,0.85, 0.9, 0.95,1), na.rm = T)
 
 
 data_r1 <- data_r %>% filter(!is.na(Y))
 
 
-data_r1 <- data_r1 %>%
-  group_by(id) %>%
-  # Garder uniquement les lignes jusqu'à la première visite où Y > 280 (inclus)
-  filter(row_number() <= first(which(Y > 350), default = n())) %>%
-  ungroup()
+hist(data_r1$Y)
+hist(data_r1$M)
+hist(data_r1$L)
 
+data_r1<- data_r1 %>%
+  group_by(id) %>%
+  # Garder uniquement les lignes tant que Y <= 400 pour chaque id
+  filter(cumall(Y <= 400)) %>%
+  ungroup()
 
 
 epsa <- 0.0001
@@ -164,4 +162,7 @@ res <-
 CI_app <- res
 
 
-save(CI_app,file=paste("Review_MAR2", rep,".Rdata",sep=""))
+save(CI_app,file=paste("Review_MNAR2", rep,".Rdata",sep=""))
+
+
+

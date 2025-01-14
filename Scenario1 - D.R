@@ -1,3 +1,24 @@
+################################################################################
+#
+#
+#
+#                                     SCENARIO 1D
+#
+#
+#
+#
+#  This script is designed to generate the results associated with Scenario 1D.
+#  
+#  In this scenario, we have defined the parameters by setting delta to 0.1,
+#  the dropout rate to 10 and the number of subject to 250
+#
+#
+# Each scenario is replicated 250 times to ensure robustness and reliability 
+# in the results.
+#
+#
+################################################################################
+
 Sys.setenv(R_LIBS_USER = "~/R/x86_64-pc-linux-gnu-library/4.2")
 options(rgl.useNULL=TRUE)
 args <- commandArgs(TRUE)
@@ -20,7 +41,7 @@ source(Simul.R)
 
 #### PARAMETERS :  ####
 K <- 3 # number of marker
-I <- 500 # number of subject
+I <- 250 # number of subject
 
 seed <- rep
 TempsFin <- 5

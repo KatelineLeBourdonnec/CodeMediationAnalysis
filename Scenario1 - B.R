@@ -1,3 +1,27 @@
+################################################################################
+#
+#
+#
+#                                     SCENARIO 1B
+#
+#
+#
+#
+#  This script is designed to generate the results associated with Scenario 1B.
+#  
+#  In this scenario, we have defined the parameters by setting delta to 0.1,
+#  and the dropout rate to 10, as scenario A, and we have varying number of 
+#  measurements.
+#
+#
+# Each scenario is replicated 250 times to ensure robustness and reliability 
+# in the results.
+#
+#
+################################################################################
+
+
+
 Sys.setenv(R_LIBS_USER = "~/R/x86_64-pc-linux-gnu-library/4.2")
 options(rgl.useNULL=TRUE)
 args <- commandArgs(TRUE)
@@ -24,8 +48,8 @@ I <- 500 # number of subject
 
 seed <- rep
 TempsFin <- 5
-DeltaT <- 0.05
-DeltaTestim <- 0.05
+DeltaT <- 0.1
+DeltaTestim <- 0.1
 
 para_mu0 <- c(0.5, 1.80, 0.2, 0.90, 0.6, 1.5) 
 para_mu <- c(0.10, 0.20, 0.2, 0.80, 0.8, 0.40) 
@@ -76,17 +100,39 @@ data_r <- Une_Simul(seed=(seed*3333), txMissOutC=0.1, txMissVisit=0.1, K=K, I=I,
 
 colnames(data_r)<-c(colnames(data_r)[1:6],"L","M","Y")
 
+# Random selection of 3 visits by subject
+data_t <- data_r %>%
+  group_by(id) %>%
+  filter(!is.na(L) & !is.na(M) & !is.na(Y)) %>%
+  filter(n() >= 3) %>%
+  sample_n(3)  
+
+data_t2 <- data_r %>%
+  group_by(id) %>%
+  filter(!is.na(L) & !is.na(M) & !is.na(Y)) %>%
+  filter(n()<=2)
+
+data_t <- rbind(data_t,data_t2)
+
+res_fusion <- left_join(data_r, data_t, by = c("id", "TimeSeq"), suffix = c("_old", "_new"), relationship="many-to-many")
+
+data_r1 <- data_r 
+
+data_r1$M <- res_fusion$M_new
+data_r1$L <- res_fusion$L_new
+
+
 epsa <- 0.0001
 epsb <- 0.0001
 epsd <- 0.0001
 
-
-MULT_L <-  hlme(L ~ (X)*Time, random =~1+Time, subject='id', data = data_r)
-MULT_M <-  hlme(M ~ (X)*Time, random =~1+Time, subject='id', data = data_r)
-MULT_Y <-  hlme(Y ~  (X)*Time, random =~1+Time, subject='id', data = data_r)
+MULT_L <-  hlme(L ~ (X)*TimeSeq, random =~1+TimeSeq, subject='id', data = data_r1)
+MULT_M <-  hlme(M ~ (X)*TimeSeq, random =~1+TimeSeq, subject='id', data = data_r1)
+MULT_Y <-  hlme(Y ~  (X)*TimeSeq, random =~1+TimeSeq, subject='id', data = data_r1)
 coefL <- MULT_L$best
 coefM <- MULT_M$best
 coefY <- MULT_Y$best
+
 # 
 
 indexparaFixeUser <- c(16:18,21:23,25:27,29,30,32,34:36,38:39,42,46:51)
