@@ -1,3 +1,37 @@
+#' Estimate estimand with delay : 
+#'
+#' This function performs bootstrap simulations to estimate estimands under different structural models 
+#' (`XY`, `XMY`, `XLMY`).
+#'
+#' @param Boots Integer. The number of bootstrap iterations for the main estimation process.
+#' @param B Integer. The number of bootstrap iterations for marker-specific perturbations.
+#' @param tmax Numeric. The maximum time for the simulation.
+#' @param delta Numeric. The time step interval.
+#' @param type Character. The type of structural model to use. Possible values are:
+#'   - `"XY"`: Direct relationship between predictors and outcomes.
+#'   - `"XMY"`: Indirect effec through the mediator.
+#'   - `"XLMY"`: Indirect effec through the mediator and the time varying confounder..
+#' @param seed Integer. Seed for random number generation (default = 1).
+#' 
+#' @return A numeric vector containing the aggregated expected values for 
+#'         each bootstrap iteration.
+#'
+#' @details 
+#' The function initializes model parameters, performs bootstrapping to estimate 
+#' the variance-covariance matrix and marker-specific means, and adjusts these 
+#' estimates through perturbations for each bootstrap sample.
+#'
+#'
+#' @import MASS
+#' @import mvtnorm
+#' @import lcmm
+#' @import dplyr
+#' @import parallel
+#' @import CInLPN2
+#' @import CInLPN
+#' @export
+
+
 ################################################################################
 # This R script is designed to estimate causal effects in complex longitudinal
 # models using a bootstrap approach. It leverages structural and measurement 
@@ -26,153 +60,155 @@
 #
 ################################################################################
 
-
-
-
-
-
-### LOAD PACKAGES
-require(MASS)
-require(splines)
-require(mvtnorm)
-require(lcmm)
-require(dplyr)
-require(parallel)
-
-require(CInLPN2)
-require(CInLPN)
-
-# Load required libraries
-library(mvtnorm)  # Provides functions for multivariate normal distribution
-library(MASS)     # Contains functions for statistical methods
-
-# Define the function to estimate the result
-estim_X_Y_anti_age <- function(Boots, B, tmax, delta, type, seed = 1) {
-  
-  # Define parameter configurations based on the type
-  if (type == "XY") {  
-    a = 1; b = 0; c = 0; d = 0; e = 0; f = 0
+estim_X_Y_anti<- function(Boots,B, tmax, delta, type, seed=1){
+  if(type=="XY"){ # changer les écritures du type
+    a=1
+    b=0
+    c=0
+    d=0
+    e=0
+    f=0
   }
-  if (type == "XMY") {  
-    a = 1; b = 1; c = 0; d = 1; e = 0; f = 0
+  if(type=="XMY"){
+    a=1
+    b=1
+    c=0
+    d=1
+    e=0
+    f=0
   }
-  if (type == "XLMY") {  
-    a = 1; b = 1; c = 1; d = 1; e = 1; f = 0
-  }
+  if(type=="XLMY"){
+    a=1
+    b=1
+    c=1
+    d=1
+    e=1
+    f=0
+  } 
   
-  # Initialize time vector and input data
-  t = seq(0, tmax, by = delta)
-  data1 <- data.frame(
-    t = t,
-    X_Y = a, X_M = b, X_L = c, NUM = rep(1, length(t)), 
-    L = 0, M = 0, Y = 0, C = 0
-  )
-  E_X_Y <- NULL  # Result storage for expected values
+  t=seq(0,tmax,by=delta)
+  data1 <- data.frame(t=seq(0,tmax,by=delta), X_Y = a, X_M = b, X_L=c, "NUM"=rep(1, length(t)),"L"=0,"M"=0,"Y"=0)
+  E_X_Y <- NULL
   
-  # Start bootstrap process
-  for (i in 1:Boots) {
-    set.seed(seed * i)  # Set seed for reproducibility
+  for (i in 1: Boots){
+    set.seed(seed*i)
+    thetaB<- rmvnorm(n=1, mean=CI_app$best, sigma = ma)
+    THETA <- rep(NA,length(CI_app$best)+length(which(CI_app$posfix==1)))
+    THETA[-which(CI_app$posfix==1)] <- thetaB
+    THETA[which(CI_app$posfix==1)] <- CI_app$coefficients[which(CI_app$posfix==1)]
+    indexparaFixeUser <- which(CI_app$posfix==1)
+    paraFixeUser <- THETA[indexparaFixeUser] 
     
-    # Sample parameter vector for the model
-    thetaB <- rmvnorm(1, mean = CI_app$best, sigma = ma)
-    THETA <- rep(NA, length(CI_app$best) + length(which(CI_app$posfix == 1)))
-    THETA[-which(CI_app$posfix == 1)] <- thetaB
-    THETA[which(CI_app$posfix == 1)] <- CI_app$coefficients[which(CI_app$posfix == 1)]
-    indexparaFixeUser <- which(CI_app$posfix == 1)
-    paraFixeUser <- THETA[indexparaFixeUser]
+    CI_estim <- CInLPN2_estimand(structural.model = list(fixed.LP0 = ~1+X_L|1+X_M|1+X_Y, fixed.DeltaLP = L|M|Y~1+X_L|1+X_M|1+X_Y,
+                                                         random.DeltaLP = ~1|1|1, trans.matrix=~1, delta.time= delta),
+                                 measurement.model = list(link.functions = list(links = c(NULL,NULL,NULL),knots = list(NULL,NULL,NULL))),
+                                 parameters = list(paras.ini = THETA, Fixed.para.index = indexparaFixeUser,
+                                                   Fixed.para.values = paraFixeUser),
+                                 option = list(parallel=F,nproc=6, print.info=F, makepred=F),
+                                 Time="t",subject="NUM",data= data1, TimeDiscretization = F, cholesky = T)
     
-    # Estimate model using input parameters
-    CI_estim <- CInLPN2_estimand(
-      structural.model = list(
-        fixed.LP0 = ~1 + X_L + C | 1 + X_M + C | 1 + X_Y + C, 
-        fixed.DeltaLP = L | M | Y ~ 1 + X_L + C | 1 + X_M + C | 1 + X_Y + C, 
-        random.DeltaLP = ~1 | 1 | 1, 
-        trans.matrix = ~1, 
-        delta.time = delta
-      ),
-      measurement.model = list(
-        link.functions = list(
-          links = c(NULL, NULL, NULL), 
-          knots = list(NULL, NULL, NULL)
-        )
-      ),
-      parameters = list(
-        paras.ini = THETA, 
-        Fixed.para.index = indexparaFixeUser, 
-        Fixed.para.values = paraFixeUser
-      ),
-      option = list(parallel = F, nproc = 6, print.info = F, makepred = F),
-      Time = "t", subject = "NUM", data = data1, 
-      TimeDiscretization = F, cholesky = T
-    )
-    
-    # Extract results: Variance-Covariance matrix (VC) and means (MU)
-    VC <- CI_estim$VC
+    VC <-CI_estim$VC
     MU <- CI_estim$Mu
     
-    # Process MU and VC for marker-specific values
-    mu_L <- MU[sequence(length(t), by = 3), 1]  # Extract mean for marker L
-    mu_M <- MU[sequence(length(t), by = 3) + 1, 1]  # Extract mean for marker M
-    mu_Y_t <- MU[length(t) * 3]  # Mean of marker Y at final time point
     
-    # Combine means and variances for joint computations
-    mu_LM <- c(mu_L, mu_M) 
-    VC_L <- VC[sequence(length(t), by = 3), sequence(length(t), by = 3)]
-    VC_M <- VC[sequence(length(t), by = 3) + 1, sequence(length(t), by = 3) + 1]
+    mu_L <- MU[sequence(length(t),by=3),1]
+    mu_M <- MU[sequence(length(t),by=3)+1,1] 
+    mu_Y_t <- MU[length(t)*3]
+    mu_LM <- c(mu_L,mu_M) 
     
-    # Initialize for bootstrap expected values
-    E_f <- NULL  
+    VC_L <- VC[sequence(length(t),by=3),sequence(length(t),by=3)]
+    VC_M <- VC[sequence(length(t),by=3)+1,sequence(length(t),by=3)+1]
+    VC_Y_t <- VC[dim(VC)[2],dim(VC)[2]]
     
-    for (j in 1:B) {
-      set.seed(seed * j)
-      ml_tb0 <- mvrnorm(1, rep(0, length(mu_LM)), VC_LM)
-      ml_tb <- mu_LM + ml_tb0  # Positive perturbation
-      ml_tbneg <- mu_LM - ml_tb0  # Negative perturbation
-      
-      # Compute the expected value adjustments
-      mat_temp <- t(as.matrix(c(covLY_t, covMY_t))) %*% solve(VC_LM)
-      E <- mu_Y_t + mat_temp %*% (as.matrix(c(ml_tb - mu_LM)))
-      Eneg <- mu_Y_t + mat_temp %*% (as.matrix(c(ml_tbneg - mu_LM)))
-      E_f <- append(E_f, c(E, Eneg)) 
+    covLM <- VC[sequence(length(t),by=3)+1,sequence(length(t),by=3)]
+    covLY <-VC[sequence(length(t),by=3)+2,sequence(length(t),by=3)]
+    covMY <-VC[sequence(length(t),by=3)+2,sequence(length(t),by=3)+1]
+    covMY_t <- covMY[dim(covMY)[1],]
+    covLY_t <- covLY[dim(covLY)[1],]
+    
+    VC_LM <- matrix(NA, nrow=dim(covLM)[2]*2, ncol=dim(covLM)[2]*2)
+    VC_LM[1:dim(covLM)[2],1:dim(covLM)[2]] <- VC_L 
+    VC_LM[(dim(covLM)[2]+1):(2*dim(covLM)[2]),(dim(covLM)[2]+1):(2*dim(covLM)[2])] <- VC_M 
+    VC_LM[1:dim(covLM)[2],(dim(covLM)[2]+1):(2*dim(covLM)[2])] <- covLM 
+    VC_LM[(dim(covLM)[2]+1):(2*dim(covLM)[2]),1:dim(covLM)[2]] <- covLM 
+    
+    cov_LM_Y_t <- matrix(c(covLY_t,covMY_t),ncol=2)
+    
+    
+    E_f <- NULL 
+    
+    
+    
+    for (i in 1:B){
+      set.seed(seed*i)
+      ml_tb0 <- mvrnorm(1,rep(0,length(mu_LM)),VC_LM)
+      ml_tb <- mu_LM + ml_tb0
+      ml_tbneg <-  mu_LM - ml_tb0
+      mat_temp <- t(as.matrix(c(covLY_t,covMY_t))) %*% solve(VC_LM)
+      E <- mu_Y_t +      mat_temp %*% (as.matrix(c(ml_tb-mu_LM)))
+      Eneg <- mu_Y_t + mat_temp %*% (as.matrix(c(ml_tbneg-mu_LM)))
+      E_f <- append(E_f, c(E,Eneg)) 
     }
-    Estimand <- mean(E_f)  # Compute final estimate for this bootstrap iteration
+    Estimand <- mean(E_f)
     
-    # Append results for each bootstrap
-    E_X_Y <- append(Estimand, E_X_Y) 
+    
+    data2 <- data.frame(t=seq(0,tmax,by=delta), X_M = e , X_Y = d, X_L=f,"NUM"=rep(1, length(t)),"L"=0,"M"=0,"Y"=0)
+    
+    
+    CI_estim <- CInLPN2_estimand(structural.model = list(fixed.LP0 = ~1+X_L|1+X_M|1+X_Y, fixed.DeltaLP = L|M|Y~1+X_L|1+X_M|1+X_Y,
+                                                         random.DeltaLP = ~1|1|1, trans.matrix=~1, delta.time= delta),
+                                 measurement.model = list(link.functions = list(links = c(NULL,NULL,NULL),knots = list(NULL,NULL,NULL))),
+                                 parameters = list(paras.ini = THETA, Fixed.para.index = indexparaFixeUser,
+                                                   Fixed.para.values = paraFixeUser),
+                                 option = list(parallel=F,nproc=6, print.info=F, makepred=F),
+                                 Time="t",subject="NUM",data= data2, TimeDiscretization = F, cholesky = T)
+    
+    
+    
+    VC <-CI_estim$VC
+    MU <- CI_estim$Mu
+    
+    mu_L <- MU[sequence(length(t),by=3),1]
+    mu_M <- MU[sequence(length(t),by=3)+1,1] 
+    mu_Y_t <- MU[length(t)*3]
+    mu_LM <- c(mu_L,mu_M) 
+    
+    VC_L <- VC[sequence(length(t),by=3),sequence(length(t),by=3)]
+    VC_M <- VC[sequence(length(t),by=3)+1,sequence(length(t),by=3)+1]
+    VC_Y_t <- VC[dim(VC)[2],dim(VC)[2]]
+    
+    covLM <- VC[sequence(length(t),by=3)+1,sequence(length(t),by=3)]
+    covLY <-VC[sequence(length(t),by=3)+2,sequence(length(t),by=3)]
+    covMY <-VC[sequence(length(t),by=3)+2,sequence(length(t),by=3)+1]
+    covMY_t <- covMY[dim(covMY)[1],]
+    covLY_t <- covLY[dim(covLY)[1],]
+    
+    VC_LM <- matrix(NA, nrow=dim(covLM)[2]*2, ncol=dim(covLM)[2]*2)
+    VC_LM[1:dim(covLM)[2],1:dim(covLM)[2]] <- VC_L 
+    VC_LM[(dim(covLM)[2]+1):(2*dim(covLM)[2]),(dim(covLM)[2]+1):(2*dim(covLM)[2])] <- VC_M 
+    VC_LM[1:dim(covLM)[2],(dim(covLM)[2]+1):(2*dim(covLM)[2])] <- covLM 
+    VC_LM[(dim(covLM)[2]+1):(2*dim(covLM)[2]),1:dim(covLM)[2]] <- covLM 
+    
+    cov_LM_Y_t <- matrix(c(covLY_t,covMY_t),ncol=2)
+    
+    E_f <- NULL 
+    
+    
+    
+    for (i in 1:B){
+      set.seed(seed*i)
+      ml_tb0 <- mvrnorm(1,rep(0,length(mu_LM)),VC_LM)
+      ml_tb <- mu_LM + ml_tb0
+      ml_tbneg <-  mu_LM - ml_tb0
+      mat_temp <- t(as.matrix(c(covLY_t,covMY_t))) %*% solve(VC_LM)
+      E <- mu_Y_t +      mat_temp %*% (as.matrix(c(ml_tb-mu_LM)))
+      Eneg <- mu_Y_t + mat_temp %*% (as.matrix(c(ml_tbneg-mu_LM)))
+      E_f <- append(E_f, c(E,Eneg)) 
+    }
+    Estimand1 <- mean(E_f)
+    
+    E_X_Y0 <-Estimand-Estimand1
+    E_X_Y <- append(E_X_Y0, E_X_Y) 
   }
-  return(E_X_Y)  # Return results
-}
-
-
-
-
-
-
-################################################################################
-####################### EXAMPLE FOR SCENARIO 2D   ##############################
-################################################################################
-# Initialize results
-res1 <- NULL
-coef <- NULL
-r <- 0
-
-# Process each file in input list
-for (f in files) {
-  load(f)  # Load input file
-  r <- r + 1
-  
-  # Define covariance matrix
-  ma <- matrix(0, nrow = length(CI_app$best), ncol = length(CI_app$best))
-  ma[upper.tri(ma, diag = T)] <- CI_app$v
-  ma <- t(ma)
-  ma[upper.tri(ma)] = t(ma)[upper.tri(ma)]
-  
-  # Perform estimations for multiple configurations
-  XY1 <- estim_X_Y_anti(500, 1, 1, delta, type = "XY", seed = 1)
-  XMY1 <- estim_X_Y_anti(500, 1, 1, delta, type = "XMY", seed = 1)
-  
-  # Repeat for different time horizons
-  # Combine and write outputs
-  path_anti <- cbind(XY1, XMY1)
-  write.table(path_anti, file = paste("Path_MNAR2_", delta, "_", r, ".txt", sep = ""))
-}
+  return(E_X_Y)
+} 
