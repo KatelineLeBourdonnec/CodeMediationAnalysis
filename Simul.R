@@ -11,7 +11,7 @@
 #' @param I Integer, number of simulated individuals.
 #' @param TempsFin Numeric, total duration of the simulation.
 #' @param DeltaT Numeric, time interval between consecutive points.
-#' @param DeltaTestim Numeric, time interval for selecting final observations.
+#' @param DeltaTestim Numeric, time interval between consecutive points..
 #' @param fixed_X0.models formula, models for fixed covariates at initial time.
 #' @param fixed_DeltaX.models formula, models for fixed covariates on time differences.
 #' @param randoms_X0.models formula, models for random effects at initial time.
