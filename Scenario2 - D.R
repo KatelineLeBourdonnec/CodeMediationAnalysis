@@ -109,7 +109,6 @@ hist(data_r1$L)
 
 data_r1<- data_r1 %>%
   group_by(id) %>%
-  # Garder uniquement les lignes tant que Y <= 400 pour chaque id
   filter(cumall(Y <= 400)) %>%
   ungroup()
 

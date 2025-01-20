@@ -110,7 +110,6 @@ data_r1 <- data_r %>% filter(!is.na(Y))
 
 data_r1 <- data_r1 %>%
   group_by(id) %>%
-  # Garder uniquement les lignes jusqu'à la première visite où Y > 280 (inclus)
   filter(row_number() <= first(which(Y > 350), default = n())) %>%
   ungroup()
 
